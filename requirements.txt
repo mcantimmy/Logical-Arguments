@@ -1,0 +1,17 @@
+streamlit>=1.28.0
+openai-whisper>=20231117
+torch>=2.0.0
+torchaudio>=2.0.0
+anthropic>=0.7.0
+python-docx>=0.8.11
+pydub>=0.25.1
+numpy>=1.24.0
+pandas>=2.0.0
+python-dotenv>=1.0.0
+ffmpeg-python>=0.2.0
+soundfile>=0.12.1
+librosa>=0.10.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+requests>=2.31.0
+pyaudio>=0.2.11 

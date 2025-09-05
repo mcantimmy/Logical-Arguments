@@ -18,7 +18,7 @@ class DocumentGenerator:
     def generate_documents(self, logic_data: Dict, include_critiques: bool = False, 
                           output_filename: str = None) -> List[str]:
         """
-        Generate Word documents with formal logic arguments.
+        Generate Word documents with formal logic arguments from conversational speech.
         
         Args:
             logic_data: Dictionary containing formal logic arguments and critiques

@@ -70,6 +70,9 @@ def main():
         help="Generate critique analysis highlighting logical flaws and inconsistencies"
     )
     
+    # Store in session state for use by sample file processing
+    st.session_state['include_critiques'] = include_critiques
+    
     whisper_model = st.sidebar.selectbox(
         "Whisper Model Size",
         ["tiny", "base", "small", "medium", "large"],
@@ -320,8 +323,91 @@ def display_results(formal_arguments, generated_files, include_critiques):
         except Exception as e:
             st.error(f"Error preparing download for {filename}: {e}")
 
+def process_sample_file(file_path: str, filename: str):
+    """Process a sample audio file through the complete pipeline."""
+    
+    # Get the current critique setting from the sidebar
+    include_critiques = st.session_state.get('include_critiques', False)
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    try:
+        # Step 1: Load processors
+        status_text.text("🔧 Loading AI models...")
+        progress_bar.progress(10)
+        
+        audio_processor = load_audio_processor()
+        logic_converter = load_logic_converter()
+        document_generator = load_document_generator()
+        
+        if not logic_converter:
+            st.error("Failed to initialize Logic Converter. Check your API key.")
+            return
+        
+        # Step 2: Transcribe audio
+        status_text.text("🎵 Transcribing audio...")
+        progress_bar.progress(30)
+        
+        with st.spinner("Transcribing audio with Whisper..."):
+            transcription_result = audio_processor.transcribe_audio(file_path)
+        
+        # Display transcription preview
+        st.success("✅ Audio transcribed successfully!")
+        
+        with st.expander("👀 View Transcription"):
+            st.text_area("Full Transcript", transcription_result["text"], height=200)
+            
+            # Show speakers
+            speakers = transcription_result.get("speakers", [])
+            st.write(f"**Detected Speakers:** {', '.join(speakers)}")
+        
+        # Step 3: Convert to formal logic
+        status_text.text("🧠 Converting to formal logic arguments...")
+        progress_bar.progress(60)
+        
+        with st.spinner("Analyzing arguments with Claude AI..."):
+            formal_arguments = logic_converter.convert_to_formal_logic(transcription_result)
+        
+        # Step 4: Generate critiques if requested
+        if include_critiques:
+            status_text.text("🔍 Analyzing logical consistency...")
+            progress_bar.progress(80)
+            
+            with st.spinner("Generating logical critiques..."):
+                formal_arguments = logic_converter.critique_arguments(formal_arguments, include_critiques=True)
+        
+        # Step 5: Generate documents
+        status_text.text("📄 Generating Word documents...")
+        progress_bar.progress(90)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_filename = f"sample_analysis_{timestamp}"
+        
+        with st.spinner("Creating Word documents..."):
+            generated_files = document_generator.generate_documents(
+                formal_arguments, 
+                include_critiques=include_critiques,
+                output_filename=base_filename
+            )
+        
+        # Step 6: Complete
+        progress_bar.progress(100)
+        status_text.text("✅ Analysis complete!")
+        
+        # Display results
+        display_results(formal_arguments, generated_files, include_critiques)
+        
+    except Exception as e:
+        st.error(f"❌ Error processing audio: {str(e)}")
+        st.error("Please check your API key and try again.")
+        
+        # Show detailed error in expander
+        with st.expander("🔧 Technical Details"):
+            st.code(traceback.format_exc())
+
 def show_sample_files():
-    """Display information about sample files."""
+    """Display information about sample files and allow processing them."""
     
     sample_dir = config.SAMPLE_AUDIO_DIR
     
@@ -330,10 +416,33 @@ def show_sample_files():
         
         if sample_files:
             st.write("Sample audio files available:")
+            
+            # Create columns for file display and processing buttons
             for file in sample_files:
                 file_path = os.path.join(sample_dir, file)
                 file_size = os.path.getsize(file_path) / (1024 * 1024)  # MB
-                st.write(f"• {file} ({file_size:.1f} MB)")
+                
+                col1, col2, col3 = st.columns([3, 1, 1])
+                
+                with col1:
+                    st.write(f"• {file} ({file_size:.1f} MB)")
+                
+                with col2:
+                    # Play button for sample file
+                    try:
+                        with open(file_path, "rb") as audio_file:
+                            audio_data = audio_file.read()
+                        st.audio(audio_data, format="audio/wav")
+                    except Exception as e:
+                        st.error(f"Error loading {file}")
+                
+                with col3:
+                    # Process button for sample file
+                    if config.ANTHROPIC_API_KEY:
+                        if st.button(f"Process", key=f"process_{file}", help=f"Process {file}"):
+                            process_sample_file(file_path, file)
+                    else:
+                        st.error("API key required")
         else:
             st.info("No sample files found. Add audio files to the `sample_audio/` directory.")
     else:

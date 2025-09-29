@@ -38,7 +38,24 @@ class AudioProcessor:
             output_path = os.path.join(temp_dir, "converted_audio.wav")
         
         try:
-            # Load audio with pydub for format conversion
+            # Check if file is already WAV format
+            _, ext = os.path.splitext(input_path.lower())
+            if ext == '.wav':
+                # For WAV files, try to use directly without conversion
+                try:
+                    # Test if the file can be loaded with librosa (which doesn't require ffmpeg)
+                    import librosa
+                    audio_data, sample_rate = librosa.load(input_path, sr=16000, mono=True)
+                    # If successful, save as WAV using soundfile
+                    import soundfile as sf
+                    sf.write(output_path, audio_data, 16000)
+                    return output_path
+                except Exception as librosa_error:
+                    print(f"Librosa conversion failed: {librosa_error}")
+                    # Fall back to pydub if librosa fails
+                    pass
+            
+            # Load audio with pydub for format conversion (requires ffmpeg)
             audio = AudioSegment.from_file(input_path)
             
             # Convert to mono and standard sample rate
@@ -50,6 +67,10 @@ class AudioProcessor:
             return output_path
         except Exception as e:
             print(f"Error converting audio format: {e}")
+            # If conversion fails, try to use the original file directly
+            if ext == '.wav':
+                print("Attempting to use original WAV file directly...")
+                return input_path
             raise
     
     def transcribe_audio(self, file_path: str, detect_speakers: bool = True) -> Dict:
